@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+    <http:listener-config name="mulebasicproject-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+    <apikit:config name="mulebasicproject-config" api="resource::fefb9d1e-3f17-4ad2-8524-9310dbeaba92:mulebasicproject:1.0.0:raml:zip:mulebasicproject.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <db:config name="Database_Config" doc:name="Database Config" doc:id="4632cba9-cbdb-45da-9bc8-c1aa93effd11" >
+		<db:my-sql-connection host="database-1.ckswki3ztfvj.us-east-2.rds.amazonaws.com" port="3306" user="admin" password="Prasad.1013" database="customer_db" >
+		</db:my-sql-connection>
+	</db:config>
+	<flow name="mulebasicproject-main">
+        <http:listener config-ref="mulebasicproject-httpListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="mulebasicproject-config" />
+    </flow>
+    <flow name="put:\customer:application\json:mulebasicproject-config">
+        <db:update doc:name="Update" doc:id="8de48688-9110-4256-8d19-d4ae699a2c02" config-ref="Database_Config">
+			<db:sql ><![CDATA[UPDATE emp_info SET name= :name, email= :email, mobile= :mobile WHERE id= :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	id : payload.id,
+	name : payload.name,
+	email : payload.email,
+	mobile: payload.mobile
+}]]]></db:input-parameters>
+		</db:update>
+		<ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+		<choice doc:name="Choice" doc:id="067e6ef4-85be-4038-ab9c-aff30f4ecb80" >
+			<when expression="#[sizeOf (payload) &gt; 0]">
+				<ee:transform doc:name="Transform Message" doc:id="13eace37-2870-4744-8684-2646bb45f6eb" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="dd67a752-de8c-4a29-a0ac-be83de68a3d3" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["204"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+    </flow>
+	<flow name="delete:\customer:mulebasicproject-config">
+        <set-variable value="#[attributes.queryParams.customerId]" doc:name="Set Variable" doc:id="5a193c53-4e05-4a96-9df7-d1dd923d158f" variableName="ID"/>
+		<db:delete doc:name="Delete" doc:id="e59181e7-532b-46e7-9d79-87ef3178b591" config-ref="Database_Config">
+			<db:sql ><![CDATA[DELETE FROM emp_info WHERE id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	id : vars.id
+}]]]></db:input-parameters>
+		</db:delete>
+		<choice doc:name="Choice" doc:id="0dd3dc7f-296b-46b9-b2fa-4d0a84c89d13" >
+			<when expression="#[sizeOf(payload)&gt;0]">
+				<ee:transform doc:name="Transform Message" doc:id="b3637648-52e4-4fa1-be5d-6bd5d3485895" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "customer deleted success"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="b02df875-7e2f-4af3-b0e4-429e9f778792" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["the customerId you are trying to delete is not exists, please check the customerId you have entered"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+    </flow>
+    <flow name="get:\customer:mulebasicproject-config">
+        <set-variable value="#[attributes.queryParams.customerId]" doc:name="Id" doc:id="95ac7a13-f23d-48ae-9098-dfc0a409ab5b" variableName="Id"/>
+		<db:select doc:name="Select" doc:id="33e2046f-3853-499b-8a12-90ac4a3eca96" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT * FROM emp_info WHERE id= :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	id : vars.id
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="bee7fc0a-62b7-405e-a450-753af26362ba" >
+			<when expression="#[sizeOf (payload) &gt; 0]">
+				<ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="c2bf3927-71dd-496f-9ff3-a1cd61b2dba4" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["for the given customer Id there is no data exist, check the customer no you are trying"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+    </flow>
+    <flow name="post:\customer:application\json:mulebasicproject-config">
+        <foreach doc:name="For Each" doc:id="dd7cfa57-e018-4882-a582-9977f3a3b73a" >
+			<db:insert doc:id="6a862be2-73f0-40d8-b110-4311cd1637dc" config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO emp_info (name, address, email, mobile) VALUES (:name, :address, :email, :mobile)]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+	name :payload.name,
+	address :payload.address,
+	email :payload.email,
+	mobile :payload.mobile
+}]]]></db:input-parameters>
+		</db:insert>
+		</foreach>
+		<ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "customer profile created success"
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+</mule>
+
